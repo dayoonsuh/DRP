@@ -39,6 +39,7 @@ class FlappyBird:
         self.discount_factor = hyperparameters['discount_factor']
         self.stop_on_reward = hyperparameters['stop_on_reward']
         self.fc1_nodes = hyperparameters['fc1_nodes']
+        self.ddqn = hyperparameters['ddqn']
         
 
         self.loss_fn = torch.nn.MSELoss()
@@ -61,7 +62,13 @@ class FlappyBird:
         terminations = torch.tensor(terminations).float()
 
         with torch.no_grad():
-            target_q = rewards + (1-terminations) * self.discount_factor *  target_dqn(new_states).max(dim=1)[0] 
+            if self.ddqn:
+                best_actions = policy_dqn(new_states).argmax(dim=1)
+                target_q = rewards + (1-terminations) * self.discount_factor * \
+                            target_dqn(new_states).gather(dim=1, index=best_actions.unsqueeze(dim=1)).squeeze()
+            
+            else:
+                target_q = rewards + (1-terminations) * self.discount_factor *  target_dqn(new_states).max(dim=1)[0] 
             # (1-terminations): if the game terminates (1), the rest becomes 0
 
         current_q = policy_dqn(states).gather(dim=1, index=actions.unsqueeze(dim=1)).squeeze()
@@ -75,7 +82,7 @@ class FlappyBird:
         self.optimizer.step() # update parameters
 
 
-    def play(self, render_mode='human', is_train=True, audio_on=True, use_lidar=False): #, audio_on=True, use_lidar=False - use when flappy bird
+    def play(self, render_mode=None, is_train=True, audio_on=True, use_lidar=False): #, audio_on=True, use_lidar=False - use when flappy bird
         
         if is_train:
             start_time = datetime.now()
@@ -115,7 +122,7 @@ class FlappyBird:
             policy_dqn.eval()
 
 
-        for episode in range(1000):
+        for episode in range(20000):
             episode_reward = 0
             terminated = False
             state, _ = env.reset()
